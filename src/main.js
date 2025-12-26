@@ -24,7 +24,12 @@ import spinBtnUrl from "./assets/spin-button.png";
 import addBetUrl from "./assets/add-bet.png";
 import minusBetUrl from "./assets/minus-bet.png";
 
-// ✅ SFX
+// HUD icons
+import infoIconUrl from "./assets/info.png";
+import soundIconUrl from "./assets/sound.png";
+import expandIconUrl from "./assets/expand.png";
+
+// SFX
 import clickSpinSfxUrl from "./assets/click_spin.mp3";
 import fallIconsSfxUrl from "./assets/fall_icons.mp3";
 import threeLinesSfxUrl from "./assets/3lines.mp3";
@@ -32,31 +37,6 @@ import fiveLinesSfxUrl from "./assets/5lines.mp3";
 
 /**
  * SLOT MACHINE (5 reels x 3 visible rows)
- *
- * ✅ Spin direction: DOWNWARD (symbols fall down)
- * ❌ Bounce effect removed (per request)
- *
- * WIN RULES:
- * - Horizontal: any 3 consecutive identical => +2.5
- * - Horizontal: 5 identical => +5.0
- * - Diagonal: any 3 consecutive identical ( / or \ ) => +2.5
- *
- * WIN DISPLAY:
- * - Adds win value directly to CREDIT (NOT multiplied by bet)
- * - Glow boxes on winning cells
- * - Glowing line across winning pattern (horizontal or diagonal)
- * - Win value text sits ON TOP of that glowing line (per pattern)
- * - Dim overlay is UNDER highlights/lines/text
- *
- * TURBO SPIN (hold SPACE):
- * - While holding SPACE: much faster spin time + less turns (snappier like casino turbo)
- * - Auto re-spin while SPACE is still held (continuous turbo)
- *
- * SFX:
- * - click spin: click_spin.mp3
- * - spin start: fall_icons.mp3
- * - 3-match (horizontal/diagonal): 3lines.mp3
- * - 5-match horizontal: 5lines.mp3
  */
 
 // ------------------------------------
@@ -182,6 +162,18 @@ function setButtonEnabled(btn, enabled) {
 }
 
 // ------------------------------------
+// Fullscreen helper (expand icon)
+// ------------------------------------
+function isFullscreen() {
+  return !!document.fullscreenElement;
+}
+function requestFullscreen() {
+  if (isFullscreen()) return;
+  const el = document.documentElement; // fullscreen entire page
+  el?.requestFullscreen?.().catch(() => {});
+}
+
+// ------------------------------------
 // SFX (simple audio pool)
 // ------------------------------------
 function makeSfx(src, { volume = 1, maxPolyphony = 3 } = {}) {
@@ -232,6 +224,11 @@ const randomSymbolId = () => randInt(0, SYMBOLS.length - 1);
 const spinBtnTexture = await PIXI.Assets.load(spinBtnUrl);
 const addBetTexture = await PIXI.Assets.load(addBetUrl);
 const minusBetTexture = await PIXI.Assets.load(minusBetUrl);
+
+// HUD icon textures
+const infoIconTexture = await PIXI.Assets.load(infoIconUrl);
+const soundIconTexture = await PIXI.Assets.load(soundIconUrl);
+const expandIconTexture = await PIXI.Assets.load(expandIconUrl);
 
 // ------------------------------------
 // Background
@@ -368,6 +365,33 @@ for (let i = 0; i < REELS; i++) reels.push(createReel(i));
 // ------------------------------------
 const hud = new PIXI.Container();
 machine.addChild(hud);
+
+// HUD icons (left side)
+const infoIcon = new PIXI.Sprite(infoIconTexture);
+infoIcon.anchor.set(0, 0.5);
+infoIcon.scale.set(0.45);
+infoIcon.eventMode = "static";
+infoIcon.cursor = "pointer";
+hud.addChild(infoIcon);
+
+const soundIcon = new PIXI.Sprite(soundIconTexture);
+soundIcon.anchor.set(0, 0.5);
+soundIcon.scale.set(0.45);
+soundIcon.eventMode = "static";
+soundIcon.cursor = "pointer";
+hud.addChild(soundIcon);
+
+const expandIcon = new PIXI.Sprite(expandIconTexture);
+expandIcon.anchor.set(0, 0.5);
+expandIcon.scale.set(0.45);
+expandIcon.eventMode = "static";
+expandIcon.cursor = "pointer";
+hud.addChild(expandIcon);
+
+//Expand => fullscreen. Exit via ESC is native browser behavior.
+expandIcon.on("pointertap", () => {
+  requestFullscreen();
+});
 
 // CREDIT
 const creditLabel = new PIXI.Text({
@@ -516,10 +540,6 @@ app.ticker.add(() => {
   }
 });
 
-/**
- * ✅ DOWNWARD SPIN:
- * - When reel.position increases, symbols move DOWN.
- */
 function updateReelSymbols(reel) {
   const total = reel.symbols.length;
   const totalH = total * SYMBOL_SIZE;
@@ -530,15 +550,14 @@ function updateReelSymbols(reel) {
   for (let i = 0; i < total; i++) {
     const cell = reel.symbols[i];
 
-    // ✅ stable wrap: evenly spaced, always fills rows (no gaps)
+    // evenly spaced, always fills rows (no gaps)
     let y = (i * SYMBOL_SIZE + baseY) % totalH;
     y -= EXTRA_SYMBOLS * SYMBOL_SIZE;
 
     const prevY = cell._prevY ?? y;
     cell._prevY = y;
 
-    // ✅ randomize ONLY when a cell wraps from bottom back to top
-    // (wrap shows as large downward->upward jump)
+    // randomize ONLY when a cell wraps from bottom back to top
     if (allowWrapRandomize && prevY > y + totalH * 0.5) {
       setSymbolCell(cell, randomSymbolId());
     }
@@ -585,7 +604,10 @@ async function spin({ turbo = false, from = "button" } = {}) {
 
   await Promise.all(spinPromises);
 
+  // hard “final pass” so we never end with gaps
   allowWrapRandomize = false;
+  for (const r of reels) updateReelSymbols(r);
+
   finalizeResults();
 
   for (const r of reels) {
@@ -632,14 +654,15 @@ function tweenReelTo(reel, targetPosition, timeMs) {
   const startPos = reel.position;
 
   return new Promise((resolve) => {
-    reel.tween = (now) => {
+    reel.tween = () => {
+      const now = performance.now();
       const t = (now - start) / timeMs;
       const eased = easeOutCubic(t);
       reel.position = lerp(startPos, targetPosition, eased);
 
       if (t >= 1) {
         reel.position = Math.round(targetPosition);
-        updateReelSymbols(reel); // ✅ IMPORTANT
+        updateReelSymbols(reel); // snap
         reel.blur.blurY = 0;
         reel.tween = null;
         resolve();
@@ -648,7 +671,7 @@ function tweenReelTo(reel, targetPosition, timeMs) {
 
     const step = () => {
       if (!reel.tween) return;
-      reel.tween(performance.now());
+      reel.tween();
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -1027,18 +1050,31 @@ function layout() {
   minusBtn.y = spinTop + minusBtn.height / 2;
   plusBtn.y = spinTop + plusBtn.height / 2;
 
-  // Credit/Bet (left)
-  creditLabel.x = -60;
+  const leftX = -60;
+
+  // Info icon before CREDIT
+  infoIcon.x = leftX;
+  infoIcon.y = 20;
+
+  creditLabel.x = infoIcon.x + infoIcon.width + 10;
   creditLabel.y = 10;
 
   creditValue.x = creditLabel.x + creditLabel.width + 8;
   creditValue.y = creditLabel.y;
 
-  betLabel.x = -60;
+  // Sound icon before BET
+  soundIcon.x = leftX;
+  soundIcon.y = 53;
+
+  betLabel.x = soundIcon.x + soundIcon.width + 10;
   betLabel.y = 40;
 
   betValue.x = betLabel.x + betLabel.width + 8;
   betValue.y = betLabel.y;
+
+  // Expand icon below sound icon (next line)
+  expandIcon.x = leftX;
+  expandIcon.y = soundIcon.y + 35;
 
   // Center texts
   const leftTextAreaX = 0;
@@ -1065,6 +1101,7 @@ window.addEventListener("resize", layout);
 // ------------------------------------
 // Start
 // ------------------------------------
+for (const r of reels) updateReelSymbols(r);
 finalizeResults();
 renderHud();
 layout();
