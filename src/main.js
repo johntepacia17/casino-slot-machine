@@ -33,6 +33,9 @@ import fiveLinesSfxUrl from "./assets/5lines.mp3";
 /**
  * SLOT MACHINE (5 reels x 3 visible rows)
  *
+ * ✅ Spin direction: DOWNWARD (symbols fall down)
+ * ❌ Bounce effect removed (per request)
+ *
  * WIN RULES:
  * - Horizontal: any 3 consecutive identical => +2.5
  * - Horizontal: 5 identical => +5.0
@@ -403,7 +406,7 @@ const turboSpinText = new PIXI.Text({
 turboSpinText.anchor.set(0.5, 0);
 hud.addChild(turboSpinText);
 
-// Turbo indicator (subtle)
+// Turbo indicator
 const turboIndicator = new PIXI.Text({
   text: "TURBO",
   style: {
@@ -467,26 +470,22 @@ let turboLoopArmed = false;
 
 function setTurboUI(on) {
   turboIndicator.visible = !!on;
-  // tiny emphasis on the helper text while holding
   turboSpinText.alpha = on ? 1 : 0.85;
 }
 
 window.addEventListener("keydown", (e) => {
   if (e.code !== "Space") return;
-
-  // stop page scrolling
   e.preventDefault();
 
   if (!turboHeld) {
     turboHeld = true;
     setTurboUI(true);
 
-    // first turbo spin immediately if possible
     if (!isSpinning) {
       turboLoopArmed = true;
       spin({ turbo: true, from: "turbo" });
     } else {
-      turboLoopArmed = true; // queue next spin when current finishes
+      turboLoopArmed = true;
     }
   }
 });
@@ -517,23 +516,30 @@ app.ticker.add(() => {
   }
 });
 
+/**
+ * ✅ DOWNWARD SPIN:
+ * - When reel.position increases, symbols move DOWN.
+ */
 function updateReelSymbols(reel) {
   const total = reel.symbols.length;
+  const totalH = total * SYMBOL_SIZE;
+
+  // baseY grows as reel.position grows (downward)
   const baseY = (reel.position % total) * SYMBOL_SIZE;
 
   for (let i = 0; i < total; i++) {
     const cell = reel.symbols[i];
 
-    let y = i * SYMBOL_SIZE - baseY;
-    y += -EXTRA_SYMBOLS * SYMBOL_SIZE;
-
-    while (y < -EXTRA_SYMBOLS * SYMBOL_SIZE) y += total * SYMBOL_SIZE;
-    while (y >= (ROWS + EXTRA_SYMBOLS) * SYMBOL_SIZE) y -= total * SYMBOL_SIZE;
+    // ✅ stable wrap: evenly spaced, always fills rows (no gaps)
+    let y = (i * SYMBOL_SIZE + baseY) % totalH;
+    y -= EXTRA_SYMBOLS * SYMBOL_SIZE;
 
     const prevY = cell._prevY ?? y;
     cell._prevY = y;
 
-    if (allowWrapRandomize && prevY > y + total * SYMBOL_SIZE * 0.5) {
+    // ✅ randomize ONLY when a cell wraps from bottom back to top
+    // (wrap shows as large downward->upward jump)
+    if (allowWrapRandomize && prevY > y + totalH * 0.5) {
       setSymbolCell(cell, randomSymbolId());
     }
 
@@ -559,7 +565,6 @@ async function spin({ turbo = false, from = "button" } = {}) {
   credit = Math.max(0, credit - bet);
   renderHud();
 
-  // start SFX
   sfx.fallIcons.play();
 
   const timeMin = turbo ? TURBO_SPIN_TIME_MIN : SPIN_TIME_MIN;
@@ -569,7 +574,6 @@ async function spin({ turbo = false, from = "button" } = {}) {
   for (let i = 0; i < reels.length; i++) {
     const reel = reels[i];
 
-    // turbo has smaller stagger, fewer turns
     const time = randInt(timeMin, timeMax) + i * (turbo ? 60 : 180);
     const baseTurns = turbo ? 10 : 18;
     const perReelTurns = turbo ? 2 : 3;
@@ -603,7 +607,6 @@ async function spin({ turbo = false, from = "button" } = {}) {
 
     showWinVisuals(win);
 
-    // turbo: shorten the celebration so it feels casino-fast
     if (turbo || turboHeld) {
       await showDimOverlayAndPauseFast();
     } else {
@@ -615,9 +618,7 @@ async function spin({ turbo = false, from = "button" } = {}) {
   setButtonEnabled(spinButton, true);
   renderHud();
 
-  // ✅ continuous turbo: if still holding space, spin again immediately
   if (turboLoopArmed && turboHeld) {
-    // tiny delay to avoid locking the UI thread + allow pointer events
     requestAnimationFrame(() => {
       if (!isSpinning && turboHeld) spin({ turbo: true, from: "turbo" });
     });
@@ -638,6 +639,7 @@ function tweenReelTo(reel, targetPosition, timeMs) {
 
       if (t >= 1) {
         reel.position = Math.round(targetPosition);
+        updateReelSymbols(reel); // ✅ IMPORTANT
         reel.blur.blurY = 0;
         reel.tween = null;
         resolve();
@@ -932,7 +934,6 @@ async function showDimOverlayAndPause() {
 // Dim overlay (turbo fast)
 // ------------------------------------
 async function showDimOverlayAndPauseFast() {
-  // much shorter + lighter so it doesn't feel like a full stop
   dimOverlay.clear().rect(0, 0, REELS_VIEW_W, REELS_VIEW_H).fill({ color: 0x000000, alpha: 0.55 });
   dimOverlay.visible = true;
   dimOverlay.alpha = 0;
