@@ -369,21 +369,21 @@ machine.addChild(hud);
 // HUD icons (left side)
 const infoIcon = new PIXI.Sprite(infoIconTexture);
 infoIcon.anchor.set(0, 0.5);
-infoIcon.scale.set(0.45);
+infoIcon.scale.set(0.55);
 infoIcon.eventMode = "static";
 infoIcon.cursor = "pointer";
 hud.addChild(infoIcon);
 
 const soundIcon = new PIXI.Sprite(soundIconTexture);
 soundIcon.anchor.set(0, 0.5);
-soundIcon.scale.set(0.45);
+soundIcon.scale.set(0.55);
 soundIcon.eventMode = "static";
 soundIcon.cursor = "pointer";
 hud.addChild(soundIcon);
 
 const expandIcon = new PIXI.Sprite(expandIconTexture);
 expandIcon.anchor.set(0, 0.5);
-expandIcon.scale.set(0.45);
+expandIcon.scale.set(0.55);
 expandIcon.eventMode = "static";
 expandIcon.cursor = "pointer";
 hud.addChild(expandIcon);
@@ -1056,7 +1056,7 @@ function layout() {
   infoIcon.x = leftX;
   infoIcon.y = 20;
 
-  creditLabel.x = infoIcon.x + infoIcon.width + 10;
+  creditLabel.x = infoIcon.x + infoIcon.width + 18;
   creditLabel.y = 10;
 
   creditValue.x = creditLabel.x + creditLabel.width + 8;
@@ -1064,17 +1064,17 @@ function layout() {
 
   // Sound icon before BET
   soundIcon.x = leftX;
-  soundIcon.y = 53;
+  soundIcon.y = 60;
 
-  betLabel.x = soundIcon.x + soundIcon.width + 10;
-  betLabel.y = 40;
+  betLabel.x = soundIcon.x + soundIcon.width + 18;
+  betLabel.y = 48;
 
   betValue.x = betLabel.x + betLabel.width + 8;
   betValue.y = betLabel.y;
 
   // Expand icon below sound icon (next line)
   expandIcon.x = leftX;
-  expandIcon.y = soundIcon.y + 35;
+  expandIcon.y = soundIcon.y + 42;
 
   // Center texts
   const leftTextAreaX = 0;
@@ -1089,7 +1089,7 @@ function layout() {
   spinForWinText.y = 70;
 
   turboSpinText.x = centerX - 40;
-  turboSpinText.y = spinForWinText.y + spinForWinText.height - Math.floor(6 * DPR);
+  turboSpinText.y = spinForWinText.y + spinForWinText.height + 3;
 
   // turbo indicator (above spin button)
   turboIndicator.x = spinButton.x;
