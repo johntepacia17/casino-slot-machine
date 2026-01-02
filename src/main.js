@@ -274,6 +274,10 @@ reelsViewport.addChild(dimOverlay);
 const highlightLayer = new PIXI.Container();
 reelsViewport.addChild(highlightLayer);
 
+// ✅ Put ALL win visuals inside this container so we can pulse/fade it together
+const winLayer = new PIXI.Container();
+highlightLayer.addChild(winLayer);
+
 // Optional separators
 const separators = new PIXI.Graphics();
 reelsViewport.addChild(separators);
@@ -388,7 +392,7 @@ expandIcon.eventMode = "static";
 expandIcon.cursor = "pointer";
 hud.addChild(expandIcon);
 
-//Expand => fullscreen. Exit via ESC is native browser behavior.
+// Expand => fullscreen. Exit via ESC is native browser behavior.
 expandIcon.on("pointertap", () => {
   requestFullscreen();
 });
@@ -567,6 +571,46 @@ function updateReelSymbols(reel) {
 }
 
 // ------------------------------------
+// Win pulse (fade/show loop) - stays until next spin
+// ------------------------------------
+let winPulseOn = false;
+let winPulseTime = 0;
+
+function startWinPulse() {
+  winPulseOn = true;
+  winPulseTime = 0;
+  winLayer.visible = true;
+  winLayer.alpha = 1;
+}
+
+function stopWinPulse({ clear = true } = {}) {
+  winPulseOn = false;
+  winPulseTime = 0;
+  winLayer.alpha = 1;
+  if (clear) clearWinVisuals();
+}
+
+// Pulse handler (runs always; does nothing if winPulseOn=false)
+app.ticker.add((ticker) => {
+  if (!winPulseOn) return;
+
+  // ticker.deltaMS is ms since last frame
+  winPulseTime += ticker.deltaMS;
+
+  // 0.9s cycle looks nice
+  const period = 900;
+  const phase = (winPulseTime % period) / period; // 0..1
+
+  // Smooth ping-pong: 0->1->0 using cosine
+  const pingPong = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2); // 0..1
+
+  // Fade range (keep visible, just pulse)
+  const minA = 0.35;
+  const maxA = 1.0;
+  winLayer.alpha = minA + (maxA - minA) * pingPong;
+});
+
+// ------------------------------------
 // Spin flow
 // ------------------------------------
 let isSpinning = false;
@@ -574,11 +618,13 @@ let isSpinning = false;
 async function spin({ turbo = false, from = "button" } = {}) {
   if (isSpinning) return;
 
+  // ✅ Next spin cancels win pulse and clears old visuals
+  stopWinPulse({ clear: true });
+
   isSpinning = true;
   allowWrapRandomize = true;
 
   setButtonEnabled(spinButton, false);
-  clearWinVisuals();
   renderHud();
 
   credit = Math.max(0, credit - bet);
@@ -627,8 +673,11 @@ async function spin({ turbo = false, from = "button" } = {}) {
     credit += win.totalValue;
     renderHud();
 
+    // ✅ show visuals and keep them on screen
     showWinVisuals(win);
+    startWinPulse();
 
+    // ✅ still show the dim pause (but DO NOT clear win visuals anymore)
     if (turbo || turboHeld) {
       await showDimOverlayAndPauseFast();
     } else {
@@ -844,14 +893,12 @@ function ensurePatternText(i) {
     patternValueTexts[i] = t;
   }
   const t = patternValueTexts[i];
-  if (t.parent !== highlightLayer) highlightLayer.addChild(t);
+  if (t.parent !== winLayer) winLayer.addChild(t);
   return t;
 }
 
 function clearWinVisuals() {
-  highlightLayer.removeChildren();
-  highlightLayer.addChild(highlightMask);
-
+  winLayer.removeChildren();
   for (const t of patternValueTexts) {
     if (t) t.visible = false;
   }
@@ -886,7 +933,7 @@ function showWinVisuals(win) {
       alpha: 0.95,
     });
 
-    highlightLayer.addChild(glow, box);
+    winLayer.addChild(glow, box);
   }
 
   for (let i = 0; i < win.patterns.length; i++) {
@@ -908,7 +955,7 @@ function showWinVisuals(win) {
     for (let k = 1; k < pts.length; k++) sharpLine.lineTo(pts[k].x, pts[k].y);
     sharpLine.stroke({ width: 4, color: 0x90f200, alpha: 0.95 });
 
-    highlightLayer.addChild(glowLine, sharpLine);
+    winLayer.addChild(glowLine, sharpLine);
 
     const midX = (first.x + last.x) / 2;
     const midY = (first.y + last.y) / 2;
@@ -923,6 +970,10 @@ function showWinVisuals(win) {
   for (let i = win.patterns.length; i < patternValueTexts.length; i++) {
     if (patternValueTexts[i]) patternValueTexts[i].visible = false;
   }
+
+  // Ensure layer visible for pulsing
+  winLayer.visible = true;
+  winLayer.alpha = 1;
 }
 
 // ------------------------------------
@@ -950,7 +1001,8 @@ async function showDimOverlayAndPause() {
 
   dimOverlay.visible = false;
   dimOverlay.alpha = 0;
-  clearWinVisuals();
+
+  // ✅ DO NOT clear win visuals here — they should stay & pulse until next spin
 }
 
 // ------------------------------------
@@ -978,7 +1030,8 @@ async function showDimOverlayAndPauseFast() {
 
   dimOverlay.visible = false;
   dimOverlay.alpha = 0;
-  clearWinVisuals();
+
+  // ✅ DO NOT clear win visuals here — they should stay & pulse until next spin
 }
 
 // ------------------------------------
