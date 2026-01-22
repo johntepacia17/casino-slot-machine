@@ -117,7 +117,7 @@ function fitSpriteCover(sprite, screenW, screenH) {
 
 /**
  * Fit icon sprite inside a cell (ONLY scale + center).
- * NOTE: cell container is positioned by reel logic; we do NOT touch cell.y here.
+ * NOTE: cell container is positioned by reel logic;
  */
 function fitIconInCell(iconSprite, cellSize, pad = 12) {
   const maxW = cellSize - pad * 2;
