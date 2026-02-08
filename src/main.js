@@ -87,6 +87,7 @@ await app.init({
 
 document.body.style.margin = "0";
 document.body.style.overflow = "hidden";
+app.canvas.style.display = "block";
 document.body.appendChild(app.canvas);
 
 // ------------------------------------
@@ -1038,8 +1039,8 @@ async function showDimOverlayAndPauseFast() {
 // Layout / Resize
 // ------------------------------------
 function layout() {
-  const W = app.renderer.width;
-  const H = app.renderer.height;
+  const W = app.renderer.screen.width;
+  const H = app.renderer.screen.height;
 
   fitSpriteCover(bgSprite, W, H);
 
