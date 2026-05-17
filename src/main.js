@@ -86,7 +86,13 @@ await app.init({
 });
 
 document.body.style.margin = "0";
+document.body.style.padding = "0";
 document.body.style.overflow = "hidden";
+document.body.style.display = "block";
+document.body.style.width = "100%";
+document.body.style.height = "100%";
+document.documentElement.style.width = "100%";
+document.documentElement.style.height = "100%";
 app.canvas.style.display = "block";
 document.body.appendChild(app.canvas);
 
@@ -671,7 +677,7 @@ async function spin({ turbo = false, from = "button" } = {}) {
     if (hasFive) sfx.fiveLines.play();
     else if (hasThree) sfx.threeLines.play();
 
-    credit += win.totalValue;
+    credit += win.totalValue * bet;
     renderHud();
 
     // ✅ show visuals and keep them on screen
@@ -962,7 +968,7 @@ function showWinVisuals(win) {
     const midY = (first.y + last.y) / 2;
 
     const t = ensurePatternText(i);
-    t.text = `$${p.value.toFixed(1)}`;
+    t.text = `$${(p.value * bet).toFixed(2)}`;
     t.x = midX;
     t.y = midY - Math.floor(18 * DPR);
     t.visible = true;
@@ -1151,6 +1157,10 @@ function layout() {
 }
 
 window.addEventListener("resize", layout);
+document.addEventListener("fullscreenchange", () => {
+  // Wait for browser to finish fullscreen transition before re-laying out
+  requestAnimationFrame(() => requestAnimationFrame(layout));
+});
 
 // ------------------------------------
 // Start
